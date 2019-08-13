@@ -17,7 +17,7 @@ import (
 var DB *sql.DB
 var err error
 
-func InitDB(userName string, password string, ip string, port string, dbName string) (error) {
+func InitDB(userName string, password string, ip string, port string, dbName string) error {
 	//构建连接："用户名:密码@tcp(IP:端口)/数据库?charset=utf8"
 	path := strings.Join([]string{userName, ":", password, "@tcp(", ip, ":", port, ")/", dbName, "?charset=utf8"}, "")
 
@@ -38,7 +38,7 @@ func InitDB(userName string, password string, ip string, port string, dbName str
 	return nil
 }
 
-func getFields(tablename string, dbname string) ([]string) {
+func getFields(tablename string, dbname string) []string {
 	var a []string
 	rows, err := DB.Query("SELECT COLUMN_NAME FROM COLUMNS WHERE TABLE_NAME = ? and TABLE_SCHEMA=?", tablename, dbname)
 	if err != nil {
@@ -52,7 +52,7 @@ func getFields(tablename string, dbname string) ([]string) {
 	return a
 }
 
-func getBinLogPath() (string) {
+func getBinLogPath() string {
 	var BinLogPath string
 	var Name string
 	err = DB.QueryRow("SHOW VARIABLES LIKE \"log_bin_basename\"").Scan(&Name, &BinLogPath)
@@ -85,7 +85,7 @@ func ExecCommand(strCommand string) (string, error) {
 func writeFile(data string, f os.File, f1 os.File, reg string, flag string) {
 	dataReg := regexp.MustCompile(reg)
 	dataArr := dataReg.FindAllString(data, -1)
-	fmt.Println(flag+" 正在处理中。。。。。。")
+	fmt.Println(flag + " 正在处理中......")
 	var sqlSentence string
 	var s1 string
 	for index, v := range dataArr {
@@ -191,13 +191,22 @@ func main() {
 	var mysqlUser string
 	var mysqlPass string
 	var saveFile string
+	var start string
+	var end string
+	var startDate string
+	var endDate string
 	flag.StringVar(&binLogName, "bin-log-name", "", "--bin-log-name bin-log文件名称")
 	flag.StringVar(&mysqlPort, "P", "3306", "-P 数据库端口号")
 	flag.StringVar(&mysqlHost, "h", "127.0.0.1", "-h 数据库IP")
 	flag.StringVar(&mysqlUser, "u", "root", "-u 数据库用户名")
 	flag.StringVar(&mysqlPass, "p", "123456", "-p 数据库密码")
 	flag.StringVar(&saveFile, "save-path", "./bin2sql.sql", "-save-path 保存解析后的文件")
+	flag.StringVar(&start, "start", "", "--start-position 开始位置")
+	flag.StringVar(&end, "end", "", "--end-position 结束位置")
+	flag.StringVar(&startDate, "start-date", "", "--start-date 结束位置")
+	flag.StringVar(&endDate, "end-date", "", "--end-date 结束位置")
 	flag.Parse()
+	var command = "mysqlbinlog -v --base64-output=decode-rows "
 	if binLogName == "" {
 		fmt.Println("请输入binlog文件名")
 		os.Exit(-1)
@@ -208,11 +217,27 @@ func main() {
 		os.Exit(-3)
 	}
 	binLogPath = getBinLogPath() + binLogName
+	if start != "" {
+		command += " --start-position=" + start
+	}
+	if end != "" {
+		command += " --end-position=" + end
+	}
+	if startDate != "" {
+		command += " --start-datetime='" + startDate + "'"
+	}
+	if endDate != "" {
+		command += " --stop-datetime='" + endDate + "'"
+	}
+	command += " " + binLogPath
+	fmt.Println("执行命令为：" + command)
+	//os.Exit(-1)
 	if _, err := os.Stat(binLogPath); os.IsNotExist(err) {
 		fmt.Println(binLogPath + "：文件不存在")
 		os.Exit(-2)
 	}
-	strData, err1 := ExecCommand("mysqlbinlog " + binLogPath + " -v")
+
+	strData, err1 := ExecCommand(command)
 	if err1 != nil {
 		fmt.Println(err1)
 		os.Exit(-4)
